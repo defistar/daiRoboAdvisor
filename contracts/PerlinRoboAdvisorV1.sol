@@ -244,31 +244,6 @@ contract PerlinRoboAdvisorV1 {
         return daiToken.balanceOf(msg.sender);
     }
 
-
-    /* custodial investment of DAI funds */
-
-    /**
-     * @dev IRToken.mintWithNewHat implementation
-     */
-    function advisorInvestDai(uint mintAmount) public onlyAdmin returns (bool) {
-        require(daiToken.allowance(address(this), rDai) >= mintAmount , "Insufficient DAI - Please increase DAI allowance for rDAI");
-        address[] memory recipients = new address[](2);
-        recipients[0] = treasury;
-        recipients[1] = msg.sender;
-        uint32[] memory proportions = new uint32[](2);
-        proportions[0] = 90;
-        proportions[1] = 10;
-        return IRToken(rDai).mintWithNewHat(mintAmount, recipients, proportions);
-    }
-
-    function approveDaiInvestmentViaRoboAdvisor(uint mintAmount) public onlyAdmin returns (bool) {
-        //uint mintAmt = 29999999999999999995;
-        require(daiToken.transferFrom(msg.sender,address(this), mintAmount), "failed to transfer DAI to RoboAdvisor");
-        require(daiToken.approve(rDai, mintAmount));
-        emit DaiApproved(msg.sender, rDai, mintAmount);
-        return true;
-    }
-
     function getAllocatedDAITorDai() public view onlyAdmin returns (uint){
         return daiToken.allowance(address(this), rDai);
     }
