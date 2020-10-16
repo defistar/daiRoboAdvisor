@@ -142,7 +142,7 @@ contract PerlinRoboAdvisorV1 {
     address public rDai;
     address public dai;
     IERC20  public daiToken;
-
+    IERC20  public rDaiToken;
 
       // Events
     event DaiApproved(
@@ -163,7 +163,6 @@ contract PerlinRoboAdvisorV1 {
         uint256 allowanceAmount,
         uint256 investment
     );
-
 
     event DaiAllowance( address indexed owner,
         address indexed spender,
@@ -194,6 +193,7 @@ contract PerlinRoboAdvisorV1 {
         dai = _dai;
         daiToken = IERC20(dai);
         rDai = _rDai;
+        rDaiToken = IERC20(rDai);
         _status = _NOT_ENTERED;
 
     }
@@ -209,31 +209,29 @@ contract PerlinRoboAdvisorV1 {
      * @dev IRToken.mintWithNewHat implementation
      */
     function investDai(uint mintAmount) public returns (bool) {
-        uint allowanceForUser  = daiToken.allowance(msg.sender, rDai);
-        emit DaiAllowanceFound(msg.sender, rDai, allowanceForUser);
-        emit DaiAllowanceValidation(msg.sender, rDai, allowanceForUser, mintAmount);
-        require(daiToken.allowance(msg.sender, rDai) >= mintAmount , "Insufficient DAI - Please increase DAI allowance for rDAI");
+        uint allowanceFromUser  = daiToken.allowance(msg.sender, address(this));
+        emit DaiAllowanceFound(msg.sender, rDai, allowanceFromUser);
+        emit DaiAllowanceValidation(msg.sender, rDai, allowanceFromUser, mintAmount);
+        require(allowanceFromUser >= mintAmount , "Insufficient DAI - Please increase DAI allowance for roboAdvisor");
+        require(daiToken.transferFrom(msg.sender, address(this), mintAmount), "Failed to transfer DAI to RoboAdvisor");
+        require(daiToken.approve(rDai, mintAmount), "Failed to allocate DAI funds to rDAI");
         address[] memory recipients = new address[](2);
         recipients[0] = treasury;
         recipients[1] = msg.sender;
         uint32[] memory proportions = new uint32[](2);
         proportions[0] = 90;
         proportions[1] = 10;
-
-        // delegatecall to IRToken
-         bool isSuccessful = rDai.delegatecall(
-            abi.encodePacked(bytes4(keccak256("mintWithNewHat(uint256,address[],uint32[]")), mintAmount, recipients, proportions)
-        ); // Value of A is modified
-
-        //rDai.delegatecall(bytes4(sha3("mintWithNewHat(uint256,address[],uint32[]")), mintAmount, recipients, proportions);  
-        //return IRToken(rDai).mintWithNewHat(mintAmount, recipients, proportions);
-        return isSuccessful;
+        require(IRToken(rDai).mintWithNewHat(mintAmount, recipients, proportions));
+        require(rDaiToken.transferFrom(address(this), msg.sender, mintAmount), "failed to transfer rDai token to Investor");
+        return true;
     }
 
-    function getAllowanceOfUserWithrDai() public returns (uint) {
-        uint allowanceForUser  = daiToken.allowance(msg.sender, rDai);
-        emit DaiAllowanceFound(msg.sender, rDai, allowanceForUser); 
-        return allowanceForUser;
+    function getAllowanceOfRoboAdvisorWithDai(address investor) public view returns (uint) {
+        return daiToken.allowance(msg.sender, address(this));
+    }
+
+    function getAllocatedDAIByRoboAdvisorTorDai() public view onlyAdmin returns (uint){
+        return daiToken.allowance(address(this), rDai);
     }
 
     function getDaiBalanceOfSender() public view returns (uint) {
@@ -241,11 +239,6 @@ contract PerlinRoboAdvisorV1 {
     }
 
     function getrDaiBalanceOfSender() public view returns (uint) {
-        return daiToken.balanceOf(msg.sender);
+        return rDaiToken.balanceOf(msg.sender);
     }
-
-    function getAllocatedDAITorDai() public view onlyAdmin returns (uint){
-        return daiToken.allowance(address(this), rDai);
-    }
-
 }
